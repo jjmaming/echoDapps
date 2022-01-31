@@ -1,0 +1,25 @@
+<resources>
+    <string name="app_name">Etherium</string>
+    <string name="create_wallet">create wallet</string>
+    <string name="your_address_will_be_shown_here">Public address : \n%s</string>
+    <string name="connect">CONNECT WALLET</string>
+    <string name="address">ADDRESS</string>
+    <string name="check_balance"> CHECK BALANCE</string>
+    <string name="send">Send</string>
+    <string name="balance">Balance : \n%s</string>
+    <string name="gasFee">Gas Fee : %s</string>
+    <string name="your_balance">\" your balance in wei is : \"</string>
+    <string name="enter_eth_value_to_send">enter Eth value to send</string>
+    <string name="create_etherium_wallet">Etherium Wallet</string>
+    <string name="enter_wallet_name">enter wallet name</string>
+    <string name="please_enter_password">please enter password</string>
+    <string name="connect_to_etherium_network">Connect to Etherium Network</string>
+    <string name="send_etherium">Send Etherium</string>
+    <string name="your_address">\"Your address is \"</string>
+    <string name="import_wallet">Import Wallet</string>
+    <string name="error_network_not_connected">Network is not connected</string>
+
+    <!--    toastmessage-->
+    <string name="lbl_connecting_to_smart_chain">Connecting to Smart Chain</string>
+    <string name="lbl_connected">Connected</string>
+</resources>
