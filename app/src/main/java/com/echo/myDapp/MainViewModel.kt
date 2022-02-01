@@ -1,29 +1,35 @@
 package com.echo.myDapp
 
 import android.app.Application
+import android.os.Build
+import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
 import com.echo.myDapp.utils.Constant
-import org.web3j.crypto.Credentials
-import org.web3j.crypto.WalletUtils
+import com.echo.myDapp.utils.EncodedFunction
+import org.web3j.crypto.*
 import org.web3j.protocol.Web3j
 import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.protocol.core.methods.request.Transaction
 import org.web3j.protocol.http.HttpService
-import org.web3j.tx.*
+import org.web3j.tx.FastRawTransactionManager
+import org.web3j.tx.Transfer
+import org.web3j.tx.gas.DefaultGasProvider
 import org.web3j.utils.Convert
+import org.web3j.utils.Numeric
 import java.io.File
 import java.math.BigDecimal
+import java.math.BigInteger
 
 
 class MainViewModel(private val context: Application) : AndroidViewModel(context) {
     private var web3: Web3j? = null
     private var credentials: Credentials? = null
 
-    var balanceLiveData = MutableLiveData<BigDecimal>()
-    var publicAddressLiveData = MutableLiveData<String>()
-    var gasFeeMutableLiveData = MutableLiveData<String>()
+    var balanceLiveData = MutableLiveData(BigDecimal.valueOf(0))
+    var publicAddressLiveData = MutableLiveData("")
+    var gasFeeMutableLiveData = MutableLiveData("")
 
     init {
         connectToNetwork()
@@ -56,10 +62,10 @@ class MainViewModel(private val context: Application) : AndroidViewModel(context
         receiverAddress: String = Constant.SEND_ADDRESS,
         unit: Convert.Unit = Convert.Unit.ETHER
     ) {
-        checkIfNetworkConnected {
+        checkIfNetworkConnected { web3j ->
             try {
                 val receipt = Transfer.sendFunds(
-                    web3,
+                    web3j,
                     getAccountCredential(),
                     receiverAddress,
                     BigDecimal.valueOf(amout),
@@ -72,46 +78,138 @@ class MainViewModel(private val context: Application) : AndroidViewModel(context
         }
     }
 
-    private fun estimateGasFee() {
-        checkIfNetworkConnected {
-            val transaction = Transaction.createContractTransaction(
-                Constant.BCOIN_CONTRACT_ADDRESS,
-                null,
-                null,
-                null
-            )
-            val amount = web3?.ethEstimateGas(transaction)?.sendAsync()?.get()?.amountUsed
-            gasFeeMutableLiveData.value =
-                Convert.fromWei(BigDecimal(amount), Convert.Unit.ETHER).toString()
+    fun sendCustomToken(
+        amountToken: Long = 0.1.toLong(),
+        contractTokenAddress: String = Constant.BCOIN_CONTRACT_ADDRESS
+    ) {
+        checkIfNetworkConnected { web3j ->
+            try {
+                val amount = BigInteger.valueOf(amountToken)
+                val gasPrice = DefaultGasProvider.GAS_PRICE
+                val maxGasPrice = DefaultGasProvider.GAS_LIMIT
+                val transactionManager = FastRawTransactionManager(web3j, getAccountCredential())
 
+                Log.d("echo", "gas price : $gasPrice")
+                Log.d("echo", "gas limit $maxGasPrice")
+                val transactionHash = transactionManager.sendTransaction(
+                    gasPrice,
+                    maxGasPrice, contractTokenAddress,
+                    EncodedFunction.transfer(Constant.SEND_ADDRESS, amount),
+                    BigInteger.ZERO
+                ).transactionHash
+
+                val transactionReceipt =
+                    web3j.ethGetTransactionReceipt(transactionHash).send().transactionReceipt
+                if (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        transactionReceipt.isPresent
+                    } else {
+                        false
+                    }
+                ) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        Log.d("echo", transactionReceipt.get().toString())
+                        showToast("transaction success")
+                        Log.d("echo", "success")
+                    } else {
+                        showToast("transaction failed null")
+                    }
+                } else {
+                    showToast("transaction failed")
+                    Log.d("echo", "transaction failed")
+                }
+
+            } catch (e: java.lang.Exception) {
+                showToast(e.message.toString())
+                Log.d("echo", e.message.toString())
+            }
         }
     }
 
-//    fun checkBalanceByToken(){
-//        checkIfNetworkConnected {
-//            val transactionManager: TransactionManager = RawTransactionManager(
-//                web3, credentials, ChainIdLong.MAINNET
-//            )
+
+//    fun sendERCToken(weiAmount: Long) {
+//        checkIfNetworkConnected { web3j ->
 //
+//            // Get the latest nonce of current account
+//            val ethGetTransactionCount = web3j
+//                .ethGetTransactionCount(
+//                    getAccountCredential().address,
+//                    DefaultBlockParameterName.LATEST
+//                )
+//                .send()
+//            val nonce = ethGetTransactionCount.transactionCount
+//
+//            // Gas Parameter
+//            val gasLimit = BigInteger.valueOf(21000)
+//            val gasPrice =
+//                BigInteger.valueOf(5000)
+//
+//            try {
+//                val transaction =
+//                    Transaction(
+//                        getAccountCredential().address,
+//                        nonce,
+//                        gasPrice,
+//                        gasLimit,
+//                        Constant.SEND_ADDRESS,
+//                        BigInteger.valueOf(weiAmount),
+//                        Constant.BCOIN_CONTRACT_ADDRESS,
+//                        ChainIdLong.ETHEREUM_CLASSIC_MAINNET,
+//                        null,
+//                        null
+//                    )
+//                val receipt = web3j.ethSendTransaction(transaction).send()
+//                showToast("Transaction successful: " + receipt.transactionHash)
+//            } catch (e: java.lang.Exception) {
+//                showToast(e.message.toString())
+//            }
 //        }
 //    }
 
-    fun checkBalance() {
-        checkIfNetworkConnected {
+    fun checkCustomBalance(contractTokenAddress: String = Constant.BCOIN_CONTRACT_ADDRESS) {
+        checkIfNetworkConnected { web3j ->
+            val transaction = Transaction.createEthCallTransaction(
+                getAccountCredential().address,
+                contractTokenAddress,
+                EncodedFunction.balanceOf(getAccountCredential())
+            )
+            val response = web3j.ethCall(transaction, DefaultBlockParameterName.LATEST)?.send()
+
+            val balance = Numeric.toBigInt(response?.value)
+            val weiBalance = Convert.fromWei(balance.toString(), Convert.Unit.ETHER)
+            balanceLiveData.value = weiBalance
+        }
+    }
+
+    fun checkBnbBalance() {
+        checkIfNetworkConnected { web3j ->
             try {
-                val balanceWei = web3?.ethGetBalance(
+                val balanceWei = web3j.ethGetBalance(
                     getAccountCredential().address,
                     DefaultBlockParameterName.LATEST
                 )?.sendAsync()?.get()
                 balanceLiveData.value =
-                    Convert.fromWei(balanceWei?.balance.toString(), Convert.Unit.ETHER)
+                    BigDecimal.valueOf(balanceWei?.balance.toString().toLong())
             } catch (e: java.lang.Exception) {
                 showToast(e.message.toString())
             }
         }
     }
 
-    fun getAccountCredential(): Credentials {
+    private fun estimateGasFee() {
+        checkIfNetworkConnected { web3j ->
+            val transaction = Transaction.createContractTransaction(
+                Constant.BCOIN_CONTRACT_ADDRESS,
+                null,
+                null,
+                null
+            )
+            val amount = web3j.ethEstimateGas(transaction).sendAsync().get().amountUsed
+            gasFeeMutableLiveData.value =
+                Convert.fromWei(BigDecimal(amount), Convert.Unit.ETHER).toString()
+        }
+    }
+
+    private fun getAccountCredential(): Credentials {
         credentials = credentials ?: Credentials.create(Constant.ACCOUNT_PRIVATE_KEY)
         publicAddressLiveData.value = credentials?.address
         return credentials!!
@@ -133,13 +231,13 @@ class MainViewModel(private val context: Application) : AndroidViewModel(context
         }
     }
 
-    private fun checkIfNetworkConnected(unit: () -> Unit) {
+    private fun checkIfNetworkConnected(unit: (web3j: Web3j) -> Unit) {
         web3?.let {
-            unit.invoke()
+            unit.invoke(it)
             return
         }
         connectToNetwork {
-            unit.invoke()
+            unit.invoke(web3!!)
         }
     }
 

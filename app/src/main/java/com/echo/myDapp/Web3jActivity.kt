@@ -10,7 +10,7 @@ import java.math.BigDecimal
 
 class Web3jActivity : BaseActivity() {
 
-    private var tokenBalance = BigDecimal(0)
+    private var tokenBalance = BigDecimal("0")
     lateinit var viewModel: MainViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -26,17 +26,24 @@ class Web3jActivity : BaseActivity() {
 
     private fun initView() {
         btn_check_balance.setOnClickListener {
-            viewModel.checkBalance()
+//            viewModel.checkBnbBalance()
+            viewModel.checkCustomBalance()
         }
         btn_connect.setOnClickListener {
             viewModel.setNewCredentials()
+        }
+
+        btn_send.setOnClickListener {
+//            viewModel.sendToken(0.01.toLong())
+            viewModel.sendCustomToken()
         }
     }
 
     private fun initObserver() {
         viewModel.balanceLiveData.observe(this) {
             tokenBalance = it
-            tv_balance.text = getString(R.string.balance, it)
+            tv_balance.text =
+                getString(R.string.balance, it)
         }
 
         viewModel.publicAddressLiveData.observe(this) {
